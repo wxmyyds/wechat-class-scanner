@@ -77,7 +77,7 @@ jobs:
       - name: Run scanner
         if: steps.apks.outputs.count > 0
         run: |
-          java -jar scanner.jar --apks-dir apks --out classes.txt
+          java -jar scanner.jar -o classes.txt apks/*.apk
 
       - name: Upload classes.txt to release
         if: steps.apks.outputs.count > 0
