@@ -1,0 +1,58 @@
+name: Scan WeChat APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      apk_urls:
+        description: 'Comma-separated URLs to APKs (optional)'
+        required: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download scanner
+        run: |
+          wget -q https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar -O scanner.jar
+          # Fallback: build from source if release not found
+          if [ ! -f scanner.jar ] || [ ! -s scanner.jar ]; then
+            git clone https://github.com/wxmyyds/wechat-class-scanner.git /tmp/scanner
+            cd /tmp/scanner && ./gradlew shadowJar --no-daemon
+            cp /tmp/scanner/build/libs/*-all.jar scanner.jar
+          fi
+
+      - name: Prepare APKs
+        id: apks
+        run: |
+          mkdir -p apks
+          # Copy all APKs from release assets
+          find . -maxdepth 1 -name '*.apk' -exec cp {} apks/ \; 2>/dev/null || true
+          # If workflow_dispatch with URLs, download them
+          if [ -n "${{ github.event.inputs.apk_urls }}" ]; then
+            IFS=',' read -ra URLS <<< "${{ github.event.inputs.apk_urls }}"
+            for url in "${URLS[@]}"; do
+              wget -q "$url" -O "apks/$(basename "$url")"
+            done
+          fi
+          echo "count=$(ls apks/*.apk 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run scanner
+        if: steps.apks.outputs.count > 0
+        run: |
+          java -jar scanner.jar --apks-dir apks --out classes.txt
+
+      - name: Upload classes.txt to release
+        if: steps.apks.outputs.count > 0
+        uses: softprops/action-gh-release@v2
+        with:
+          files: classes.txt
