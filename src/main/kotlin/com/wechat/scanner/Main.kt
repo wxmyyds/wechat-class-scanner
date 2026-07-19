@@ -64,12 +64,13 @@ class Main : Runnable {
         try {
             val container = DexFileFactory.loadDexContainer(java.io.File(apkPath), Opcodes.forApi(28))
 
-            val dexEntries = container.dexEntries
-            println("  DEX entries in container: ${dexEntries.size}")
+            val entryNames = container.dexEntryNames
+            println("  DEX entries in container: ${entryNames.size}")
             var count = 0
 
-            for (dexEntry in dexEntries) {
-                val classDefs = dexEntry.classes.toList()
+            for (entryName in entryNames) {
+                val dexEntry = container.getEntry(entryName) ?: continue
+                val classDefs = dexEntry.dexFile.classes.toList()
 
                 for (classDef in classDefs) {
                     val type = classDef.type
