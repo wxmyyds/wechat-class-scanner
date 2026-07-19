@@ -43,7 +43,7 @@ jobs:
           # Case 1: Release trigger — download from triggering release
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "Downloading APKs from release ${{ github.event.release.tag_name }}..."
-            gh release download "${{ github.event.release.tag_name }}" --dir apks || true
+            gh release download "${{ github.event.release.tag_name }}" --dir apks --pattern "*.apk" --pattern "*.apks" || true
 
           # Case 2: Manual trigger with URLs — download from provided URLs
           elif [ -n "${{ github.event.inputs.apk_urls }}" ]; then
@@ -56,7 +56,7 @@ jobs:
           # Case 3: Manual trigger without URLs — download from latest release
           else
             echo "Downloading APKs from latest release..."
-            gh release download --dir apks || true
+            gh release download --dir apks --pattern "*.apk" --pattern "*.apks" || true
           fi
 
           echo "count=$(ls apks/*.apk apks/*.apks 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
