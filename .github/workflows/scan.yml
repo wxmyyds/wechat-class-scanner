@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -42,8 +44,7 @@ jobs:
           # Case 1: Release trigger — download assets from the triggering release
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "Downloading APKs from release ${{ github.event.release.tag_name }}..."
-            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/${{ github.event.release.tag_name }} --jq '.id')
-            for asset_url in $(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets" --jq '.[].browser_download_url'); do
+            for asset_url in $(gh api "repos/${{ github.repository }}/releases/${{ github.event.release.tag_name }}/assets" --jq '.[].browser_download_url'); do
               echo "  Downloading $asset_url"
               wget -q "$asset_url" -O "apks/$(basename "$asset_url")" || true
             done
@@ -57,7 +58,7 @@ jobs:
           # Case 3: Manual trigger without URLs — download from latest release
           else
             echo "No URLs provided, downloading APKs from latest release..."
-            for asset_url in $(gh api "repos/${{ github.repository }}/releases/latest" --jq '.assets[].browser_download_url'); do
+            for asset_url in $(gh api "repos/${{ github.repository }}/releases/latest/assets" --jq '.[].browser_download_url'); do
               echo "  Downloading $asset_url"
               wget -q "$asset_url" -O "apks/$(basename "$asset_url")" || true
             done
