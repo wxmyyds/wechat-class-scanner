@@ -6,6 +6,7 @@ import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
+import org.jf.dexlib2.iface.MultiDexContainer
 
 @Command(
     name = "wechat-class-scanner",
@@ -61,34 +62,39 @@ class Main : Runnable {
     ) {
         println("Scanning $apkPath...")
         try {
-            val dexFile = DexFileFactory.loadDexFile(java.io.File(apkPath), Opcodes.forApi(28))
+            val container = DexFileFactory.loadDexContainer(java.io.File(apkPath), Opcodes.forApi(28))
 
-            val classDefs = dexFile.classes.toList()
+            val dexEntries = container.dexEntries
+            println("  DEX entries in container: ${dexEntries.size}")
             var count = 0
 
-            for (classDef in classDefs) {
-                val type = classDef.type
-                val className = type.substring(1, type.length - 1).replace('/', '.')
+            for (dexEntry in dexEntries) {
+                val classDefs = dexEntry.classes.toList()
 
-                if (!className.startsWith(packagePrefix)) continue
+                for (classDef in classDefs) {
+                    val type = classDef.type
+                    val className = type.substring(1, type.length - 1).replace('/', '.')
 
-                val lowerName = className.lowercase()
-                val matches = keywords.any { lowerName.contains(it) }
-                if (!matches) continue
+                    if (!className.startsWith(packagePrefix)) continue
 
-                val methods = if (includeMethods) {
-                    classDef.methods.map { method ->
-                        val params = method.parameterTypes.joinToString(", ") { param -> param.replace('/', '.') }
-                        val returnType = method.returnType.replace('/', '.')
-                        "  ${method.name}($params)$returnType"
+                    val lowerName = className.lowercase()
+                    val matches = keywords.any { lowerName.contains(it) }
+                    if (!matches) continue
+
+                    val methods = if (includeMethods) {
+                        classDef.methods.map { method ->
+                            val params = method.parameterTypes.joinToString(", ") { param -> param.replace('/', '.') }
+                            val returnType = method.returnType.replace('/', '.')
+                            "  ${method.name}($params)$returnType"
+                        }
+                    } else {
+                        emptyList<String>()
                     }
-                } else {
-                    emptyList<String>()
-                }
 
-                if (methods.isNotEmpty() || !includeMethods) {
-                    results[className] = methods.toMutableList()
-                    count++
+                    if (methods.isNotEmpty() || !includeMethods) {
+                        results[className] = methods.toMutableList()
+                        count++
+                    }
                 }
             }
 
