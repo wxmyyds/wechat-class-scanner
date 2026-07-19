@@ -4,6 +4,8 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 import picocli.CommandLine.Parameters
+import org.jf.dexlib2.DexFileFactory
+import org.jf.dexlib2.Opcodes
 
 @Command(
     name = "wechat-class-scanner",
@@ -12,19 +14,19 @@ import picocli.CommandLine.Parameters
 )
 class Main : Runnable {
 
-    @Option(names = ["-o", "--output"], description = "Output file path (default: stdout)", defaultValue = "")
+    @Option(names = ["-o", "--output"], description = ["Output file path (default: stdout)"], defaultValue = "")
     var outputPath: String = ""
 
-    @Option(names = ["-k", "--keywords"], description = "Comma-separated keywords to filter classes", defaultValue = "msg,conversation,conv,contact,storage,store,info,message")
+    @Option(names = ["-k", "--keywords"], description = ["Comma-separated keywords to filter classes"], defaultValue = "msg,conversation,conv,contact,storage,store,info,message")
     var keywords: String = ""
 
-    @Option(names = ["-p", "--package-prefix"], description = "Package prefix to filter (e.g. com.tencent.mm)", defaultValue = "com.tencent")
+    @Option(names = ["-p", "--package-prefix"], description = ["Package prefix to filter (e.g. com.tencent.mm)"], defaultValue = "com.tencent")
     var packagePrefix: String = ""
 
-    @Option(names = ["-m", "--include-methods"], description = "Include method signatures in output", defaultValue = "true")
+    @Option(names = ["-m", "--include-methods"], description = ["Include method signatures in output"], defaultValue = "true")
     var includeMethods: Boolean = true
 
-    @Parameters(index = "0..*", description = "APK file paths (base.apk + split_config.*.apk)")
+    @Parameters(index = "0..*", description = ["APK file paths (base.apk + split_config.*.apk)"])
     var apkPaths: List<String> = emptyList()
 
     override fun run() {
@@ -59,34 +61,36 @@ class Main : Runnable {
     ) {
         println("Scanning $apkPath...")
         try {
-            val dexFile = org.jf.dexlib2.dexbacked.DexBackedDexFileFactory.fromFile(java.io.File(apkPath))
-            
-            val classDefs = dexFile.classes
+            val dexFile = DexFileFactory.loadDexFile(java.io.File(apkPath), Opcodes.forApi(28))
+
+            val classDefs = dexFile.classes.toList()
             var count = 0
-            
+
             for (classDef in classDefs) {
                 val className = classDef.name.replace('/', '.')
-                
+
                 if (!className.startsWith(packagePrefix)) continue
-                
+
                 val lowerName = className.lowercase()
                 val matches = keywords.any { lowerName.contains(it) }
                 if (!matches) continue
 
                 val methods = if (includeMethods) {
                     classDef.methods.map { method ->
-                        val params = method.parameterTypes.joinToString(", ") { it.replace('/', '.') }
+                        val params = method.parameterTypes.joinToString(", ") { param -> param.replace('/', '.') }
                         val returnType = method.returnType.replace('/', '.')
                         "  ${method.name}($params)$returnType"
                     }
-                } else emptyList()
+                } else {
+                    emptyList<String>()
+                }
 
                 if (methods.isNotEmpty() || !includeMethods) {
                     results[className] = methods.toMutableList()
                     count++
                 }
             }
-            
+
             dexFile.close()
             println("  Found $count matching classes")
         } catch (e: Exception) {
@@ -97,7 +101,7 @@ class Main : Runnable {
     private fun generateOutput(results: Map<String, MutableList<String>>, includeMethods: Boolean): String {
         val sb = StringBuilder()
         val sortedClasses = results.keys.sorted()
-        
+
         for (className in sortedClasses) {
             sb.appendLine(className)
             if (includeMethods) {
@@ -106,7 +110,7 @@ class Main : Runnable {
                 }
             }
         }
-        
+
         return sb.toString()
     }
 }
