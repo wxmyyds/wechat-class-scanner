@@ -62,7 +62,20 @@ jobs:
               wget -q "$asset_url" -O "apks/$(basename "$asset_url")" || true
             done
           fi
-          echo "count=$(ls apks/*.apk 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+          echo "count=$(ls apks/*.apk apks/*.apks 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Extract .apks bundles
+        if: steps.apks.outputs.count > 0
+        run: |
+          # .apks files are ZIP bundles containing individual split APKs
+          for bundle in apks/*.apks; do
+            [ -f "$bundle" ] || continue
+            echo "Extracting $bundle..."
+            unzip -o -q "$bundle" -d apks/ 2>/dev/null || true
+          done
+          # Remove .apks bundles after extraction, keep only .apk files
+          rm -f apks/*.apks
+          echo "Final APK count: $(ls apks/*.apk 2>/dev/null | wc -l)"
 
       - name: Run scanner
         if: steps.apks.outputs.count > 0
