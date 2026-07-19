@@ -67,7 +67,8 @@ class Main : Runnable {
             var count = 0
 
             for (classDef in classDefs) {
-                val className = classDef.name.replace('/', '.')
+                val type = classDef.type
+                val className = type.substring(1, type.length - 1).replace('/', '.')
 
                 if (!className.startsWith(packagePrefix)) continue
 
@@ -91,7 +92,6 @@ class Main : Runnable {
                 }
             }
 
-            dexFile.close()
             println("  Found $count matching classes")
         } catch (e: Exception) {
             System.err.println("Error scanning $apkPath: ${e.message}")
