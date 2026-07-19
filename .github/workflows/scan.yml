@@ -29,11 +29,13 @@ jobs:
           if [ ! -f scanner.jar ] || [ ! -s scanner.jar ]; then
             echo "Pre-built scanner not found, building from source..."
             git clone https://github.com/wxmyyds/wechat-class-scanner.git /tmp/scanner
-            cd /tmp/scanner
-            chmod +x gradlew
-            ./gradlew shadowJar --no-daemon
+            chmod +x /tmp/scanner/gradlew
+            /tmp/scanner/gradlew --project-dir /tmp/scanner shadowJar --no-daemon
             cp /tmp/scanner/build/libs/*-all.jar scanner.jar
           fi
+          echo "=== scanner.jar ==="
+          ls -la scanner.jar
+          file scanner.jar
 
       - name: Prepare APKs
         id: apks
