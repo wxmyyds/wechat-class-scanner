@@ -4,11 +4,14 @@ Standalone CLI tool to scan WeChat APK(s) for class names and method signatures.
 
 ## Features
 
-- **Multi-APK input**: Scans `base.apk` + all `split_config.*.apk` in one run
+- **Multi-DEX**: Scans `base.apk` and iterates **all** `classes.dex` entries in the container (WeChat splits code across many DEX files — `classes.dex`, `classes2.dex`, …)
+- **Multi-APK input**: Pass `base.apk` + any `split_config.*.apk` as positional args; resource/config splits without a DEX are skipped gracefully
 - **dexlib2 backend**: Pure bytecode parsing, no class loading, no runtime crashes
-- **Keyword filtering**: Targets `msg`, `conversation`, `contact`, `storage`, `modelmulti`, etc.
+- **Keyword filtering**: Targets `msg`, `conversation`, `contact`, `storage`, etc.
 - **Method signatures**: Outputs full descriptors (e.g., `insert(Landroid/content/ContentValues;)J`)
 - **Zero dependencies at runtime**: Shadow JAR bundles dexlib2 + picocli (~3 MB)
+
+> Note: classes only *referenced* (e.g. in method parameter types) but not *defined* in the scanned DEX files will not have their own method list. A full scan of `base.apk` covers the vast majority of `com.tencent.mm.*` definitions.
 
 ## Quick Start
 
@@ -16,27 +19,22 @@ Standalone CLI tool to scan WeChat APK(s) for class names and method signatures.
 # Download latest release
 wget https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar
 
-# Scan WeChat APKs (base + splits)
-java -jar scanner-all.jar \
-  --apks base.apk,split_config.arm64_v8a.apk,split_config.x86_64.apk \
-  --out classes.txt
+# Scan WeChat APKs (positional args) — outputs classes.txt
+java -jar scanner-all.jar -o classes.txt base.apk split_config.arm64_v8a.apk
 
-# Or scan a directory containing all APKs
-java -jar scanner-all.jar \
-  --apks-dir /path/to/wechat-apks \
-  --out classes.txt
+# Or just base.apk (it contains the multi-DEX container)
+java -jar scanner-all.jar -o classes.txt base.apk
 ```
 
 ## CLI Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--apks <files>` | Comma-separated APK paths (required unless `--apks-dir` used) | — |
-| `--apks-dir <dir>` | Directory containing `base.apk` + `split_config.*.apk` | — |
+| `<apk>...` | Positional APK file paths (required) | — |
 | `-o, --output <file>` | Output file (default: stdout) | stdout |
-| `-k, --keywords <csv>` | Keywords to filter class names | `msg,conversation,conv,contact,storage,store,info,message,modelmulti` |
+| `-k, --keywords <csv>` | Keywords to filter class names | `msg,conversation,conv,contact,storage,store,info,message` |
 | `-p, --package-prefix <pkg>` | Package prefix filter | `com.tencent` |
-| `--no-methods` | Disable method signature output | false |
+| `-m, --include-methods` | Include method signatures in output (boolean flag) | `true` |
 
 ## Output Format
 
@@ -55,7 +53,7 @@ com.tencent.mm.storage.MsgInfoStorage
 
 - **Classes**: One per line, sorted
 - **Methods**: Indented, full JVM descriptors (parameter types + return type)
-- **Filtering**: Only classes containing at least one keyword AND having public methods
+- **Filtering**: Only classes whose name contains at least one keyword under the package prefix, and that have at least one method (when `-m` is on)
 
 ## GitHub Actions: Auto-scan on Release
 
@@ -80,21 +78,18 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Download scanner
-        run: wget -q https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar -O scanner.jar
-      - name: Find APKs in release assets
+        run: wget -q https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar -O scanner.jar || true
+      - name: Prepare APKs
         id: apks
         run: |
-          mkdir apks
-          # GitHub Actions automatically downloads release assets to ./release-assets/
-          # Adjust pattern as needed
-          find . -name '*.apk' -exec cp {} apks/ \;
+          mkdir -p apks
+          gh release download --dir apks --pattern "*.apk" --pattern "*.apks" || true
+          for bundle in apks/*.apks; do [ -f "$bundle" ] && unzip -o -q "$bundle" -d apks/; done
+          rm -f apks/*.apks
       - name: Run scanner
-        run: |
-          java -jar scanner.jar --apks-dir apks --out classes.txt
+        run: java -jar scanner.jar -o classes.txt apks/*.apk
       - name: Upload classes.txt to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: classes.txt
+        run: gh release upload "$(gh release list --limit 1 --json tagName -q '.[0].tagName')" classes.txt --clobber
 ```
 
 **Workflow**: Push Release → Action downloads APKs from assets → Runs scanner → Uploads `classes.txt` back to same Release.
