@@ -113,9 +113,12 @@ class Main : Runnable {
 
         return sb.toString()
     }
-}
 
-fun main(args: Array<String>) {
-    val exitCode = CommandLine(Main()).execute(*args)
-    System.exit(exitCode)
+    companion object {
+        @JvmStatic
+        fun main(args: Array<String>) {
+            val exitCode = CommandLine(Main()).execute(*args)
+            System.exit(exitCode)
+        }
+    }
 }
