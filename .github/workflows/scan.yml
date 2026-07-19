@@ -39,13 +39,27 @@ jobs:
         id: apks
         run: |
           mkdir -p apks
-          # Copy all APKs from release assets
-          find . -maxdepth 1 -name '*.apk' -exec cp {} apks/ \; 2>/dev/null || true
-          # If workflow_dispatch with URLs, download them
-          if [ -n "${{ github.event.inputs.apk_urls }}" ]; then
+          # Case 1: Release trigger — download assets from the triggering release
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "Downloading APKs from release ${{ github.event.release.tag_name }}..."
+            RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/${{ github.event.release.tag_name }} --jq '.id')
+            for asset_url in $(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets" --jq '.[].browser_download_url'); do
+              echo "  Downloading $asset_url"
+              wget -q "$asset_url" -O "apks/$(basename "$asset_url")" || true
+            done
+          # Case 2: Manual trigger with URLs — download from provided URLs
+          elif [ -n "${{ github.event.inputs.apk_urls }}" ]; then
             IFS=',' read -ra URLS <<< "${{ github.event.inputs.apk_urls }}"
             for url in "${URLS[@]}"; do
-              wget -q "$url" -O "apks/$(basename "$url")"
+              echo "Downloading $url"
+              wget -q "$url" -O "apks/$(basename "$url")" || true
+            done
+          # Case 3: Manual trigger without URLs — download from latest release
+          else
+            echo "No URLs provided, downloading APKs from latest release..."
+            for asset_url in $(gh api "repos/${{ github.repository }}/releases/latest" --jq '.assets[].browser_download_url'); do
+              echo "  Downloading $asset_url"
+              wget -q "$asset_url" -O "apks/$(basename "$asset_url")" || true
             done
           fi
           echo "count=$(ls apks/*.apk 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
@@ -57,6 +71,9 @@ jobs:
 
       - name: Upload classes.txt to release
         if: steps.apks.outputs.count > 0
-        uses: softprops/action-gh-release@v2
-        with:
-          files: classes.txt
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            gh release upload "${{ github.event.release.tag_name }}" classes.txt --clobber
+          else
+            gh release upload "$(gh release list --limit 1 --json tagName -q '.[0].tagName')" classes.txt --clobber
+          fi

@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jf.dexlib2:dexlib2:2.5.2")
+    implementation("org.smali:dexlib2:2.5.2")
     implementation("info.picocli:picocli:4.7.6")
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
