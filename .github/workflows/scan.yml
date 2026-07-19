@@ -82,8 +82,15 @@ jobs:
       - name: Upload classes.txt to release
         if: steps.apks.outputs.count > 0
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            gh release upload "${{ github.event.release.tag_name }}" classes.txt --clobber
-          else
-            gh release upload "$(gh release list --limit 1 --json tagName -q '.[0].tagName')" classes.txt --clobber
+          if [ ! -f classes.txt ]; then
+            echo "ERROR: classes.txt not found, nothing to upload"
+            exit 1
           fi
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="$(gh release list --limit 1 --json tagName -q '.[0].tagName')"
+          fi
+          echo "Uploading classes.txt to release $TAG"
+          gh release upload "$TAG" classes.txt --clobber
+          echo "Upload exit code: $?"
