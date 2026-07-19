@@ -27,7 +27,9 @@ jobs:
           # Fallback: build from source if release not found
           if [ ! -f scanner.jar ] || [ ! -s scanner.jar ]; then
             git clone https://github.com/wxmyyds/wechat-class-scanner.git /tmp/scanner
-            cd /tmp/scanner && ./gradlew shadowJar --no-daemon
+            cd /tmp/scanner || exit 1
+            chmod +x gradlew
+            ./gradlew shadowJar --no-daemon
             cp /tmp/scanner/build/libs/*-all.jar scanner.jar
           fi
 
