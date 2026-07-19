@@ -23,11 +23,13 @@ jobs:
 
       - name: Download scanner
         run: |
-          wget -q https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar -O scanner.jar
-          # Fallback: build from source if release not found
+          # Try download pre-built scanner; allow failure to fall through
+          wget -q https://github.com/wxmyyds/wechat-class-scanner/releases/latest/download/scanner-all.jar -O scanner.jar || true
+          # Build from source if release not found or empty
           if [ ! -f scanner.jar ] || [ ! -s scanner.jar ]; then
+            echo "Pre-built scanner not found, building from source..."
             git clone https://github.com/wxmyyds/wechat-class-scanner.git /tmp/scanner
-            cd /tmp/scanner || exit 1
+            cd /tmp/scanner
             chmod +x gradlew
             ./gradlew shadowJar --no-daemon
             cp /tmp/scanner/build/libs/*-all.jar scanner.jar
